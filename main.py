@@ -1,11 +1,13 @@
 import os
 import json
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from pymongo import MongoClient
 from google.cloud import secretmanager
 import logging
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 
 # Initialize Secret Manager client
 client = secretmanager.SecretManagerServiceClient()
@@ -28,16 +30,26 @@ def get_mongodb_client():
         raise Exception("MongoDB connection string not found in secrets")
     return MongoClient(connection_string)
 
-@app.route('/find_movies', methods=['POST'])
+@app.route('/find_movies', methods=['POST', 'OPTIONS'])
 def find_movies():
     """Find movies based on natural language query"""
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+    
     try:
         data = request.get_json()
         query = data.get('query', '')
         limit = data.get('limit', 10)
         
         if not query:
-            return jsonify({'error': 'Query parameter is required'}), 400
+            response = jsonify({'error': 'Query parameter is required'})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
         
         # Connect to MongoDB
         mongodb_client = get_mongodb_client()
@@ -78,26 +90,40 @@ def find_movies():
             if '_id' in result:
                 result['_id'] = str(result['_id'])
         
-        return jsonify({
+        response = jsonify({
             'success': True,
             'query': query,
             'results': results,
             'count': len(results)
         })
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
         
     except Exception as e:
         logging.error(f"Error in find_movies: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
-@app.route('/find_movie_by_title', methods=['POST'])
+@app.route('/find_movie_by_title', methods=['POST', 'OPTIONS'])
 def find_movie_by_title():
     """Find a specific movie by title"""
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Methods', 'POST, OPTIONS')
+        return response
+    
     try:
         data = request.get_json()
         title = data.get('title', '')
         
         if not title:
-            return jsonify({'error': 'Title parameter is required'}), 400
+            response = jsonify({'error': 'Title parameter is required'})
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            return response, 400
         
         # Connect to MongoDB
         mongodb_client = get_mongodb_client()
@@ -121,24 +147,31 @@ def find_movie_by_title():
         
         if movie:
             movie['_id'] = str(movie['_id'])
-            return jsonify({
+            response = jsonify({
                 'success': True,
                 'movie': movie
             })
         else:
-            return jsonify({
+            response = jsonify({
                 'success': False,
                 'message': f'Movie with title "{title}" not found'
-            }), 404
+            })
+        
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
             
     except Exception as e:
         logging.error(f"Error in find_movie_by_title: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
-    return jsonify({'status': 'healthy', 'service': 'mongodb-vertex-api'})
+    response = jsonify({'status': 'healthy', 'service': 'mongodb-vertex-api'})
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 def mongodb_crud(request):
     """Main entry point for Cloud Function"""
