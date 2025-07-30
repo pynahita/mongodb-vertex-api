@@ -90,4 +90,65 @@ def find_movies():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/find_movie_by_title', methods=['POST'])
-def fin
+def find_movie_by_title():
+    """Find a specific movie by title"""
+    try:
+        data = request.get_json()
+        title = data.get('title', '')
+        
+        if not title:
+            return jsonify({'error': 'Title parameter is required'}), 400
+        
+        # Connect to MongoDB
+        mongodb_client = get_mongodb_client()
+        db = mongodb_client.sample_mflix
+        collection = db.movies
+        
+        # Find movie by title (case insensitive)
+        movie = collection.find_one(
+            {"title": {"$regex": title, "$options": "i"}},
+            {
+                "title": 1,
+                "year": 1,
+                "plot": 1,
+                "genres": 1,
+                "cast": 1,
+                "directors": 1,
+                "rated": 1,
+                "runtime": 1
+            }
+        )
+        
+        if movie:
+            movie['_id'] = str(movie['_id'])
+            return jsonify({
+                'success': True,
+                'movie': movie
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Movie with title "{title}" not found'
+            }), 404
+            
+    except Exception as e:
+        logging.error(f"Error in find_movie_by_title: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'service': 'mongodb-vertex-api'})
+
+def mongodb_crud(request):
+    """Main entry point for Cloud Function"""
+    with app.test_request_context(request.url, method=request.method, 
+                                  data=request.data, headers=request.headers):
+        try:
+            return app.full_dispatch_request()
+        except Exception as e:
+            logging.error(f"Error in mongodb_crud: {str(e)}")
+            return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
